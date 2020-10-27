@@ -2,18 +2,18 @@ from dl_plus.extractor import Extractor, ExtractorError, ExtractorPlugin
 from youtube_dl.utils import int_or_none, parse_iso8601, urljoin
 
 
-__version__ = '0.1.0'
+__version__ = '0.1.1.dev0'
 
 
 plugin = ExtractorPlugin(__name__)
 
 
-class WASDTVBaseIE(Extractor):
+class WASDTVBaseExtractor(Extractor):
 
     _API_BASE = 'https://wasd.tv/api/'
     _THUMBNAIL_SIZES = ('small', 'medium', 'large')
 
-    def _fetch(self, *path, **kwargs):
+    def _fetch(self, *path, description, item_id, **kwargs):
         """
         Fetch the resource using WASD.TV API.
 
@@ -28,21 +28,20 @@ class WASDTVBaseIE(Extractor):
         Any additional keyword arguments are passed directly to
         the _download_json method.
         """
-        description = kwargs.pop('description')
         response = self._download_json(
             urljoin(self._API_BASE, '/'.join(path)),
-            kwargs.pop('item_id'),
-            note='Downloading {} metadata'.format(description),
-            errnote='Unable to download {} metadata'.format(description),
-            **kwargs)
+            item_id,
+            note=f'Downloading {description} metadata',
+            errnote=f'Unable to download {description} metadata',
+            **kwargs,
+        )
         if not isinstance(response, dict):
-            raise ExtractorError(
-                'JSON object expected, got: {!r}'.format(response))
+            raise ExtractorError(f'JSON object expected, got: {response!r}')
         error = response.get('error')
         if error:
+            error_code = error.get('code')
             raise ExtractorError(
-                '{} returned error: {}'.format(self.IE_NAME, error['code']),
-                expected=True)
+                f'{self.IE_NAME} returned error: {error_code}', expected=True)
         return response['result']
 
     def _extract_thumbnails(self, thumbnails_dict):
@@ -63,7 +62,7 @@ class WASDTVBaseIE(Extractor):
         return self._og_search_title(self._download_webpage(url, item_id))
 
 
-class WASDTVBaseVideoIE(WASDTVBaseIE):
+class WASDTVBaseVideoExtractor(WASDTVBaseExtractor):
 
     def _get_container(self, url):
         """
@@ -90,46 +89,33 @@ class WASDTVBaseVideoIE(WASDTVBaseIE):
             'id': str(video_id),
             'title': (
                 container.get('media_container_name')
-                or self._extract_og_title(url, video_id)),
+                or self._extract_og_title(url, video_id)
+            ),
             'description': container.get('media_container_description'),
             'thumbnails': self._extract_thumbnails(
                 media_meta.get('media_preview_images')),
             'timestamp': parse_iso8601(container.get('created_at')),
             'view_count': int_or_none(stream.get(
                 'stream_current_viewers' if is_live
-                else 'stream_total_viewers')),
+                else 'stream_total_viewers'
+            )),
             'is_live': is_live,
             'formats': self._extract_m3u8_formats(media_url, video_id, 'mp4'),
         }
 
 
 @plugin.register('stream')
-class WASDTVStreamIE(WASDTVBaseVideoIE):
+class WASDTVStreamExtractor(WASDTVBaseVideoExtractor):
 
     _VALID_URL = r'https?://wasd\.tv/(?P<id>[^/#?]+)$'
-    _TEST = {
-        'url': 'https://wasd.tv/24_7',
-        'info_dict': {
-            'id': '559738',
-            'ext': 'mp4',
-            'title': 'Live 24/7 Music',
-            'description': '24&#x2F;7 Music',
-            'timestamp': int,
-            'upload_date': r're:^\d{8}$',
-            'is_live': True,
-            'view_count': int,
-        },
-        'params': {
-            'skip_download': True,
-        },
-    }
 
     def _get_container(self, url):
         nickname = self._match_id(url)
         channel = self._fetch(
             'channels', 'nicknames', nickname,
             item_id=nickname,
-            description='channel')
+            description='channel',
+        )
         channel_id = channel['channel_id']
         containers = self._fetch(
             'v2', 'media-containers',
@@ -139,10 +125,10 @@ class WASDTVStreamIE(WASDTVBaseVideoIE):
                 'media_container_status': 'RUNNING',
             },
             item_id=channel_id,
-            description='running media containers')
+            description='running media containers',
+        )
         if not containers:
-            raise ExtractorError(
-                '{} is offline'.format(nickname), expected=True)
+            raise ExtractorError(f'{nickname} is offline', expected=True)
         return containers[0]
 
     def _get_media_url(self, media_meta):
@@ -150,32 +136,17 @@ class WASDTVStreamIE(WASDTVBaseVideoIE):
 
 
 @plugin.register('record')
-class WASDTVRecordIE(WASDTVBaseVideoIE):
+class WASDTVRecordExtractor(WASDTVBaseVideoExtractor):
 
     _VALID_URL = r'https?://wasd\.tv/[^/#?]+/videos\?record=(?P<id>\d+)$'
-    _TEST = {
-        'url': 'https://wasd.tv/mightypoot/videos?record=551500',
-        'info_dict': {
-            'id': '551593',
-            'ext': 'mp4',
-            'title': 'Похвали Стримера Финал: Fall Guys, Darkest Dungeon',
-            'description': 'Здрасте.\nна этом всё',
-            'timestamp': 1598885270,
-            'upload_date': '20200831',
-            'is_live': False,
-            'view_count': int,
-        },
-        'params': {
-            'skip_download': True,
-        },
-    }
 
     def _get_container(self, url):
         container_id = self._match_id(url)
         return self._fetch(
             'v2', 'media-containers', container_id,
             item_id=container_id,
-            description='media container')
+            description='media container',
+        )
 
     def _get_media_url(self, media_meta):
         media_archive_url = media_meta.get('media_archive_url')
@@ -185,36 +156,24 @@ class WASDTVRecordIE(WASDTVBaseVideoIE):
 
 
 @plugin.register('clip')
-class WASDTVClipIE(WASDTVBaseIE):
+class WASDTVClipExtractor(WASDTVBaseExtractor):
 
     _VALID_URL = r'https?://wasd\.tv/[^/#?]+/clips\?clip=(?P<id>\d+)$'
-    _TEST = {
-        'url': 'https://wasd.tv/dawgos/clips?clip=5539',
-        'info_dict': {
-            'id': '5539',
-            'ext': 'mp4',
-            'title': 'это про вас',
-            'timestamp': 1598912283,
-            'upload_date': '20200831',
-            'view_count': None,
-        },
-        'params': {
-            'skip_download': True,
-        },
-    }
 
     def _real_extract(self, url):
         clip_id = self._match_id(url)
         clip = self._fetch(
             'v2', 'clips', clip_id,
             item_id=clip_id,
-            description='clip')
+            description='clip',
+        )
         clip_data = clip['clip_data']
         return {
             'id': str(clip_id),
             'title': (
                 clip.get('clip_title')
-                or self._extract_og_title(url, clip_id)),
+                or self._extract_og_title(url, clip_id)
+            ),
             'thumbnails': self._extract_thumbnails(clip_data.get('preview')),
             'timestamp': parse_iso8601(clip.get('created_at')),
             'view_count': int_or_none(clip.get('clip_views_count')),
