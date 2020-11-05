@@ -1,8 +1,12 @@
+from dl_plus import ytdl
 from dl_plus.extractor import Extractor, ExtractorError, ExtractorPlugin
-from youtube_dl.utils import int_or_none, parse_iso8601, urljoin
 
 
-__version__ = '0.1.1.dev0'
+int_or_none, parse_iso8601, urljoin = ytdl.import_from(
+    'utils', ['int_or_none', 'parse_iso8601', 'urljoin'])
+
+
+__version__ = '0.2.0'
 
 
 plugin = ExtractorPlugin(__name__)
