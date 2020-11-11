@@ -6,7 +6,7 @@ int_or_none, parse_iso8601, urljoin = ytdl.import_from(
     'utils', ['int_or_none', 'parse_iso8601', 'urljoin'])
 
 
-__version__ = '0.2.0'
+__version__ = '0.3.0.dev0'
 
 
 plugin = ExtractorPlugin(__name__)
@@ -111,16 +111,20 @@ class WASDTVBaseVideoExtractor(WASDTVBaseExtractor):
 @plugin.register('stream')
 class WASDTVStreamExtractor(WASDTVBaseVideoExtractor):
 
-    _VALID_URL = r'https?://wasd\.tv/(?P<id>[^/#?]+)$'
+    _VALID_URL = (
+        r'https?://wasd\.tv/'
+        r'(?:channel/(?P<channel_id>\d+)|(?P<nickname>[^/#?]+))/?$'
+    )
 
     def _get_container(self, url):
-        nickname = self._match_id(url)
-        channel = self._fetch(
-            'channels', 'nicknames', nickname,
-            item_id=nickname,
-            description='channel',
-        )
-        channel_id = channel['channel_id']
+        channel_id, nickname = self.dlp_match(
+            url).group('channel_id', 'nickname')
+        if not channel_id:
+            channel_id = self._fetch(
+                'channels', 'nicknames', nickname,
+                item_id=nickname,
+                description='channel',
+            )['channel_id']
         containers = self._fetch(
             'v2', 'media-containers',
             query={
