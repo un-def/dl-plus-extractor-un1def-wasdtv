@@ -48,6 +48,11 @@ class WASDTVBaseExtractor(Extractor):
                 f'{self.IE_NAME} returned error: {error_code}', expected=True)
         return response['result']
 
+    def _extract_formats(self, m3u8_url, video_id):
+        formats = self._extract_m3u8_formats(m3u8_url, video_id, 'mp4')
+        self._sort_formats(formats)
+        return formats
+
     def _extract_thumbnails(self, thumbnails_dict):
         if not thumbnails_dict:
             return None
@@ -104,7 +109,7 @@ class WASDTVBaseVideoExtractor(WASDTVBaseExtractor):
                 else 'stream_total_viewers'
             )),
             'is_live': is_live,
-            'formats': self._extract_m3u8_formats(media_url, video_id, 'mp4'),
+            'formats': self._extract_formats(media_url, video_id),
         }
 
 
@@ -185,6 +190,5 @@ class WASDTVClipExtractor(WASDTVBaseExtractor):
             'thumbnails': self._extract_thumbnails(clip_data.get('preview')),
             'timestamp': parse_iso8601(clip.get('created_at')),
             'view_count': int_or_none(clip.get('clip_views_count')),
-            'formats': self._extract_m3u8_formats(
-                clip_data['url'], clip_id, 'mp4'),
+            'formats': self._extract_formats(clip_data['url'], clip_id),
         }
