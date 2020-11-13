@@ -14,6 +14,8 @@ plugin = ExtractorPlugin(__name__)
 
 class WASDTVBaseExtractor(Extractor):
 
+    DLP_BASE_URL = r'https?://(www\.)?wasd\.tv/'
+
     _API_BASE = 'https://wasd.tv/api/'
     _THUMBNAIL_SIZES = ('small', 'medium', 'large')
 
@@ -116,10 +118,7 @@ class WASDTVBaseVideoExtractor(WASDTVBaseExtractor):
 @plugin.register('stream')
 class WASDTVStreamExtractor(WASDTVBaseVideoExtractor):
 
-    _VALID_URL = (
-        r'https?://wasd\.tv/'
-        r'(?:channel/(?P<channel_id>\d+)|(?P<nickname>[^/#?]+))/?$'
-    )
+    DLP_REL_URL = r'(?:channel/(?P<channel_id>\d+)|(?P<nickname>[^/#?]+))/?$'
 
     def _get_container(self, url):
         channel_id, nickname = self.dlp_match(
@@ -151,7 +150,7 @@ class WASDTVStreamExtractor(WASDTVBaseVideoExtractor):
 @plugin.register('record')
 class WASDTVRecordExtractor(WASDTVBaseVideoExtractor):
 
-    _VALID_URL = r'https?://wasd\.tv/[^/#?]+/videos\?record=(?P<id>\d+)$'
+    DLP_REL_URL = r'[^/#?]+/videos\?record=(?P<id>\d+)$'
 
     def _get_container(self, url):
         container_id = self._match_id(url)
@@ -171,7 +170,7 @@ class WASDTVRecordExtractor(WASDTVBaseVideoExtractor):
 @plugin.register('clip')
 class WASDTVClipExtractor(WASDTVBaseExtractor):
 
-    _VALID_URL = r'https?://wasd\.tv/[^/#?]+/clips\?clip=(?P<id>\d+)$'
+    DLP_REL_URL = r'[^/#?]+/clips\?clip=(?P<id>\d+)$'
 
     def _real_extract(self, url):
         clip_id = self._match_id(url)
