@@ -6,7 +6,7 @@ int_or_none, parse_iso8601, urljoin = ytdl.import_from(
     'utils', ['int_or_none', 'parse_iso8601', 'urljoin'])
 
 
-__version__ = '0.3.0'
+__version__ = '0.3.1.dev0'
 
 
 plugin = ExtractorPlugin(__name__)
@@ -150,7 +150,8 @@ class WASDTVStreamExtractor(WASDTVBaseVideoExtractor):
 @plugin.register('record')
 class WASDTVRecordExtractor(WASDTVBaseVideoExtractor):
 
-    DLP_REL_URL = r'[^/#?]+/videos\?record=(?P<id>\d+)$'
+    DLP_REL_URL = (
+        r'(?:[^/#?]+/videos\?record=|channel/\d+/videos/)(?P<id>\d+)$')
 
     def _get_container(self, url):
         container_id = self._match_id(url)
