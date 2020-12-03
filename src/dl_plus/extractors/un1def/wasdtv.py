@@ -6,7 +6,7 @@ int_or_none, parse_iso8601, urljoin = ytdl.import_from(
     'utils', ['int_or_none', 'parse_iso8601', 'urljoin'])
 
 
-__version__ = '0.3.1.dev0'
+__version__ = '0.3.1'
 
 
 plugin = ExtractorPlugin(__name__)
