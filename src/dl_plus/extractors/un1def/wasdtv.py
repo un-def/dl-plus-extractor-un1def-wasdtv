@@ -6,7 +6,7 @@ int_or_none, parse_iso8601, urljoin = ytdl.import_from(
     'utils', ['int_or_none', 'parse_iso8601', 'urljoin'])
 
 
-__version__ = '0.3.1'
+__version__ = '0.4.0.dev0'
 
 
 plugin = ExtractorPlugin(__name__)
@@ -16,7 +16,7 @@ class WASDTVBaseExtractor(Extractor):
 
     DLP_BASE_URL = r'https?://(www\.)?wasd\.tv/'
 
-    _API_BASE = 'https://wasd.tv/api/'
+    _API_BASE = 'https://wasd.tv/api/v2/'
     _THUMBNAIL_SIZES = ('small', 'medium', 'large')
 
     def _fetch(self, *path, description, item_id, **kwargs):
@@ -118,30 +118,28 @@ class WASDTVBaseVideoExtractor(WASDTVBaseExtractor):
 @plugin.register('stream')
 class WASDTVStreamExtractor(WASDTVBaseVideoExtractor):
 
-    DLP_REL_URL = r'(?:channel/(?P<channel_id>\d+)|(?P<nickname>[^/#?]+))/?$'
+    DLP_REL_URL = (
+        r'(?:channel/(?P<channel_id>\d+)|(?P<channel_name>[^/#?]+))/?$')
 
     def _get_container(self, url):
-        channel_id, nickname = self.dlp_match(
-            url).group('channel_id', 'nickname')
-        if not channel_id:
-            channel_id = self._fetch(
-                'channels', 'nicknames', nickname,
-                item_id=nickname,
-                description='channel',
-            )['channel_id']
-        containers = self._fetch(
-            'v2', 'media-containers',
-            query={
-                'channel_id': channel_id,
-                'media_container_type': 'SINGLE',
-                'media_container_status': 'RUNNING',
-            },
-            item_id=channel_id,
-            description='running media containers',
+        channel_id, channel_name = self.dlp_match(
+            url).group('channel_id', 'channel_name')
+        if channel_id:
+            query = {'channel_id': channel_id}
+            item_id = channel_id
+        else:
+            query = {'channel_name': channel_name}
+            item_id = channel_name
+        broadcast = self._fetch(
+            'broadcasts', 'public',
+            query=query,
+            item_id=item_id,
+            description='broadcast',
         )
-        if not containers:
-            raise ExtractorError(f'{nickname} is offline', expected=True)
-        return containers[0]
+        container = broadcast.get('media_container')
+        if not container:
+            raise ExtractorError(f'{item_id} is offline', expected=True)
+        return container
 
     def _get_media_url(self, media_meta):
         return media_meta['media_url'], True
@@ -156,7 +154,7 @@ class WASDTVRecordExtractor(WASDTVBaseVideoExtractor):
     def _get_container(self, url):
         container_id = self._match_id(url)
         return self._fetch(
-            'v2', 'media-containers', container_id,
+            'media-containers', container_id,
             item_id=container_id,
             description='media container',
         )
@@ -176,7 +174,7 @@ class WASDTVClipExtractor(WASDTVBaseExtractor):
     def _real_extract(self, url):
         clip_id = self._match_id(url)
         clip = self._fetch(
-            'v2', 'clips', clip_id,
+            'clips', clip_id,
             item_id=clip_id,
             description='clip',
         )
