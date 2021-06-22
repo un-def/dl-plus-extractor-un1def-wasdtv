@@ -95,7 +95,7 @@ class WASDTVBaseVideoExtractor(WASDTVBaseExtractor):
         media = stream['stream_media'][0]
         media_meta = media['media_meta']
         media_url, is_live = self._get_media_url(media_meta)
-        video_id = media.get('media_id') or container.get('media_container_id')
+        video_id = container.get('media_container_id') or media.get('media_id')
         return {
             'id': str(video_id),
             'title': (
