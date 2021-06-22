@@ -138,7 +138,11 @@ class WASDTVStreamExtractor(WASDTVBaseVideoExtractor):
         )
         container = broadcast.get('media_container')
         if not container:
-            raise ExtractorError(f'{item_id} is offline', expected=True)
+            try:
+                name_or_id = broadcast['channel']['channel_name']
+            except KeyError:
+                name_or_id = channel_name or channel_id
+            raise ExtractorError(f'{name_or_id} is offline', expected=True)
         return container
 
     def _get_media_url(self, media_meta):
