@@ -75,10 +75,11 @@ class WASDTVBaseExtractor(Extractor):
 
 class WASDTVBaseVideoExtractor(WASDTVBaseExtractor):
 
-    def _get_container(self, url):
+    def _get_container_and_channel(self, url):
         """
-        Download and extract the media container dict for the given URL.
-        Return the container dict.
+        Download and extract the media container dict and the optional channel
+        dict for the given URL.
+        Return a tuple (container: dict, channel: dict | None).
         """
         raise NotImplementedError
 
@@ -90,13 +91,13 @@ class WASDTVBaseVideoExtractor(WASDTVBaseExtractor):
         raise NotImplementedError
 
     def _real_extract(self, url):
-        container = self._get_container(url)
+        container, channel = self._get_container_and_channel(url)
         stream = container['media_container_streams'][0]
         media = stream['stream_media'][0]
         media_meta = media['media_meta']
         media_url, is_live = self._get_media_url(media_meta)
         video_id = container.get('media_container_id') or media.get('media_id')
-        return {
+        result = {
             'id': str(video_id),
             'title': (
                 container.get('media_container_name')
@@ -113,6 +114,13 @@ class WASDTVBaseVideoExtractor(WASDTVBaseExtractor):
             'is_live': is_live,
             'formats': self._extract_formats(media_url, video_id),
         }
+        if channel:
+            result['channel'] = channel.get('channel_name')
+            channel_id = channel.get('channel_id')
+            if channel_id is not None:
+                result['channel_id'] = channel_id
+                result['channel_url'] = f'https://wasd.tv/channel/{channel_id}'
+        return result
 
 
 @plugin.register('stream')
@@ -121,7 +129,7 @@ class WASDTVStreamExtractor(WASDTVBaseVideoExtractor):
     DLP_REL_URL = (
         r'(?:channel/(?P<channel_id>\d+)|(?P<channel_name>[^/#?]+))/?$')
 
-    def _get_container(self, url):
+    def _get_container_and_channel(self, url):
         channel_id, channel_name = self.dlp_match(
             url).group('channel_id', 'channel_name')
         if channel_id:
@@ -143,7 +151,7 @@ class WASDTVStreamExtractor(WASDTVBaseVideoExtractor):
             except KeyError:
                 name_or_id = channel_name or channel_id
             raise ExtractorError(f'{name_or_id} is offline', expected=True)
-        return container
+        return (container, broadcast.get('channel'))
 
     def _get_media_url(self, media_meta):
         return media_meta['media_url'], True
@@ -155,13 +163,14 @@ class WASDTVRecordExtractor(WASDTVBaseVideoExtractor):
     DLP_REL_URL = (
         r'(?:[^/#?]+/videos\?record=|channel/\d+/videos/)(?P<id>\d+)$')
 
-    def _get_container(self, url):
+    def _get_container_and_channel(self, url):
         container_id = self._match_id(url)
-        return self._fetch(
+        container = self._fetch(
             'media-containers', container_id,
             item_id=container_id,
             description='media container',
         )
+        return (container, container.get('media_container_channel'))
 
     def _get_media_url(self, media_meta):
         media_archive_url = media_meta.get('media_archive_url')
