@@ -6,7 +6,7 @@ int_or_none, parse_iso8601, urljoin = ytdl.import_from(
     'utils', ['int_or_none', 'parse_iso8601', 'urljoin'])
 
 
-__version__ = '0.4.0'
+__version__ = '0.5.0.dev0'
 
 
 plugin = ExtractorPlugin(__name__)
@@ -19,7 +19,9 @@ class WASDTVBaseExtractor(Extractor):
     _API_BASE = 'https://wasd.tv/api/v2/'
     _THUMBNAIL_SIZES = ('small', 'medium', 'large')
 
-    def _fetch(self, *path, description, item_id, **kwargs):
+    def _fetch(
+        self, *path, description, item_id, expected_status=None, **kwargs,
+    ):
         """
         Fetch the resource using WASD.TV API.
 
@@ -33,13 +35,14 @@ class WASDTVBaseExtractor(Extractor):
 
         Any additional keyword arguments are passed directly to
         the _download_json method.
+        The expected_status is set to (200, 404) if not specified.
         """
         response = self._download_json(
             urljoin(self._API_BASE, '/'.join(path)),
             item_id,
             note=f'Downloading {description} metadata',
             errnote=f'Unable to download {description} metadata',
-            expected_status=(200, 404),
+            expected_status=expected_status or (200, 404),
             **kwargs,
         )
         if not isinstance(response, dict):
@@ -159,6 +162,28 @@ class WASDTVStreamExtractor(WASDTVBaseVideoExtractor):
             except KeyError:
                 name_or_id = channel_name or channel_id
             raise ExtractorError(f'{name_or_id} is offline', expected=True)
+        return (container, broadcast.get('channel'))
+
+    def _get_media_url(self, media_meta):
+        return media_meta['media_url'], True
+
+
+@plugin.register('privatestream')
+class WASDTVPrivateStreamExtractor(WASDTVBaseVideoExtractor):
+
+    DLP_REL_URL = r'private-stream/(?P<id>[^/#?]+)'
+
+    def _get_container_and_channel(self, url):
+        private_id = self._match_id(url)
+        broadcast = self._fetch(
+            'broadcasts', 'closed', private_id,
+            expected_status=(200, 412),
+            item_id=private_id,
+            description='broadcast',
+        )
+        container = broadcast.get('media_container')
+        if not container:
+            raise ExtractorError(f'{private_id} is offline', expected=True)
         return (container, broadcast.get('channel'))
 
     def _get_media_url(self, media_meta):
