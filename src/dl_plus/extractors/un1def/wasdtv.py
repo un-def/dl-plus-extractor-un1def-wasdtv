@@ -39,6 +39,7 @@ class WASDTVBaseExtractor(Extractor):
             item_id,
             note=f'Downloading {description} metadata',
             errnote=f'Unable to download {description} metadata',
+            expected_status=(200, 404),
             **kwargs,
         )
         if not isinstance(response, dict):
@@ -46,8 +47,15 @@ class WASDTVBaseExtractor(Extractor):
         error = response.get('error')
         if error:
             error_code = error.get('code')
+            error_details = error.get('details')
+            if error_details:
+                error_msg = f'error: {error_details}'
+            else:
+                error_msg = 'error'
+            if error_code:
+                error_msg = f'{error_msg} ({error_code})'
             raise ExtractorError(
-                f'{self.IE_NAME} returned error: {error_code}', expected=True)
+                f'{self.IE_NAME} returned {error_msg}', expected=True)
         return response['result']
 
     def _extract_formats(self, m3u8_url, video_id):
